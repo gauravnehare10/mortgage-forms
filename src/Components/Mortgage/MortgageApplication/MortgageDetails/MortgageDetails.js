@@ -7,7 +7,9 @@ import useFormStore from '../../store';
 const MortgageDetails = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
-  const [mortgageDetails, setMortgageDetails] = useState({
+  const [hasPartner, setHasPartner] = useState(false);
+  
+  const initialMortgageDetails = {
     foundProperty: '',
     addressPostcode: '',
     address: ['', '', '', '', ''],
@@ -32,57 +34,99 @@ const MortgageDetails = () => {
     increaseLoanAmount: false,
     payFeesPartly: false,
     confirmFeesInterest: false,
+  };
+
+  const [mortgageDetails, setMortgageDetails] = useState({
+    applicant: { ...initialMortgageDetails },
+    partner: { ...initialMortgageDetails }
   });
 
-  const handleChange = (e) => {
-    const { name, value, type } = e.target;
-  
-    if (name === 'foundProperty' && value === 'No') {
-      setMortgageDetails((prev) => ({
+  const handleChange = (e, person = 'applicant') => {
+    const { name, value, type, checked } = e.target;
+    
+    // Extract the base field name by removing person prefix if it exists
+    const baseName = name.startsWith(`${person}-`) ? name.replace(`${person}-`, '') : name;
+    
+    if (baseName === 'foundProperty' && value === 'No') {
+      setMortgageDetails(prev => ({
         ...prev,
-        foundProperty: value,
-        addressPostcode: '',
-        address: ['', '', '', '', ''],
-        propertyAddress: '',
+        [person]: {
+          ...prev[person],
+          foundProperty: value,
+          addressPostcode: '',
+          address: ['', '', '', '', ''],
+          propertyAddress: '',
+        }
       }));
-    } else if (name.startsWith('address') && name !== 'addressPostcode') {
-      const index = parseInt(name.replace('address', ''), 10) - 1;
-      setMortgageDetails((prev) => {
-        const updatedAddress = [...prev.address];
+    } else if (baseName.startsWith('address') && baseName !== 'addressPostcode') {
+      const index = parseInt(baseName.replace('address', ''), 10) - 1;
+      setMortgageDetails(prev => {
+        const updatedPersonData = { ...prev[person] };
+        const updatedAddress = [...updatedPersonData.address];
         updatedAddress[index] = value;
-        return { ...prev, address: updatedAddress };
+        return {
+          ...prev,
+          [person]: {
+            ...updatedPersonData,
+            address: updatedAddress
+          }
+        };
       });
     } else {
-      setMortgageDetails((prev) => ({
+      setMortgageDetails(prev => ({
         ...prev,
-        [name]: type === 'checkbox' ? !prev[name] : value,
+        [person]: {
+          ...prev[person],
+          [baseName]: type === 'checkbox' ? checked : value,
+        }
       }));
     }
   };
 
   useEffect(() => {
     fetchFormData("mortgageDetails");
-    fetchFormData("residentialHistory")
+    fetchFormData("residentialData");
+    fetchFormData("mainDetails");
   }, [fetchFormData]);
 
   useEffect(() => {
-    if (formData.mortgageDetails) {
-      setMortgageDetails(formData.mortgageDetails)
+    if (formData.mainDetails) {
+      setHasPartner(formData.mainDetails.partners?.length > 0);
     }
-  }, [formData.mortgageDetails]);
+    
+    if (formData.mortgageDetails) {
+      setMortgageDetails({
+        applicant: {
+          ...initialMortgageDetails,
+          ...(formData.mortgageDetails.applicant || {})
+        },
+        partner: {
+          ...initialMortgageDetails,
+          ...(formData.mortgageDetails.partner || {})
+        }
+      });
+    }
+  }, [formData.mortgageDetails, formData.mainDetails]);
 
-  const calculateLoanDetails = () => {
-    const loanAmount = mortgageDetails.purchasePrice - mortgageDetails.depositAmount;
-    const ltv = ((loanAmount / mortgageDetails.purchasePrice) * 100).toFixed(2);
-    setMortgageDetails((prev) => ({
+  const calculateLoanDetails = (person = 'applicant') => {
+    const personData = mortgageDetails[person];
+    const purchasePrice = parseFloat(personData.purchasePrice) || 0;
+    const depositAmount = parseFloat(personData.depositAmount) || 0;
+    const loanAmount = purchasePrice - depositAmount;
+    const ltv = purchasePrice > 0 ? ((loanAmount / purchasePrice) * 100).toFixed(2) : '0';
+    
+    setMortgageDetails(prev => ({
       ...prev,
-      totalLoanAmount: loanAmount,
-      loanToValue: ltv,
+      [person]: {
+        ...prev[person],
+        totalLoanAmount: loanAmount > 0 ? loanAmount : '',
+        loanToValue: ltv,
+      }
     }));
   };
 
-  const findAddress = async () => {
-    const postcode = mortgageDetails.addressPostcode.trim();
+  const findAddress = async (person = 'applicant') => {
+    const postcode = mortgageDetails[person].addressPostcode.trim();
     if (!postcode) {
       alert('Please enter a postcode.');
       return;
@@ -94,9 +138,12 @@ const MortgageDetails = () => {
 
       const updatedAddress = ['', admin_district || '', admin_ward || '', '', 'United Kingdom'];
 
-      setMortgageDetails((prev) => ({
+      setMortgageDetails(prev => ({
         ...prev,
-        address: updatedAddress,
+        [person]: {
+          ...prev[person],
+          address: updatedAddress,
+        }
       }));
     } catch (error) {
       alert('Error fetching address. Please check the postcode and try again.');
@@ -104,15 +151,428 @@ const MortgageDetails = () => {
     }
   };
 
-  const useResidentialAddress = () => {
-    const residentialAddress = formData.residentialHistory[0].address
-    setMortgageDetails((prev) => ({ ...prev, address: residentialAddress }));
-    setMortgageDetails((prev) => ({ ...prev, addressPostcode: formData.residentialHistory[0].postcode}))
+  const handleUseResidentialAddress = (person = 'applicant') => {
+    const residentialData = person === 'applicant' 
+      ? formData.residentialData?.client 
+      : formData.residentialData?.partner;
+  
+    if (!residentialData || !Array.isArray(residentialData) || residentialData.length === 0) {
+      alert('No residential address history found');
+      return;
+    }
+  
+    const mostRecentAddress = residentialData[0]?.address || ['', '', '', '', ''];
+    const postcode = residentialData[0]?.postcode || '';
+  
+    setMortgageDetails(prev => ({
+      ...prev,
+      [person]: {
+        ...prev[person],
+        address: [...mostRecentAddress],
+        addressPostcode: postcode
+      }
+    }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     updateFormData('mortgageDetails', mortgageDetails);
+  };
+
+  const renderMortgageForm = (person, title) => {
+    const personData = mortgageDetails[person] || { ...initialMortgageDetails };
+    
+    return (
+      <div className="person-section">
+        <h3>{title}</h3>
+
+        <div className="form-group">
+          <label>Have you found a property?</label>
+          <div>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-foundProperty`}  // Unique name per person
+                value="Yes"
+                checked={personData.foundProperty === 'Yes'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-foundProperty`}  // Same unique name
+                value="No"
+                checked={personData.foundProperty === 'No'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        {personData.foundProperty === 'Yes' && (
+          <>
+            <div className="form-group">
+              <label>Address of the property being Mortgaged/Re-mortgaged</label>
+              <input
+                type="text"
+                name="propertyAddress"
+                value={personData.propertyAddress}
+                onChange={(e) => handleChange(e, person)}
+                placeholder="Property address"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Postcode</label>
+              <input
+                type="text"
+                name="addressPostcode"
+                placeholder="Enter postcode"
+                value={personData.addressPostcode}
+                onChange={(e) => handleChange(e, person)}
+              />
+            </div>
+
+            <div className="form-group">
+              <button 
+                type="button" 
+                className="address-button" 
+                onClick={() => findAddress(person)}
+              >
+                Find Address
+              </button>
+            </div>
+
+            {personData.address.map((addr, index) => (
+              <div className="form-group" key={index}>
+                <label>Address Line {index + 1}</label>
+                <input
+                  type="text"
+                  name={`address${index + 1}`}
+                  value={addr}
+                  onChange={(e) => handleChange(e, person)}
+                />
+              </div>
+            ))}
+
+            <div className="form-group">
+              <button 
+                type="button" 
+                className="address-button" 
+                onClick={() => handleUseResidentialAddress(person)}
+                disabled={
+                  !formData.residentialData?.[person === 'applicant' ? 'client' : 'partner'] ||
+                  formData.residentialData[person === 'applicant' ? 'client' : 'partner'].length === 0
+                }
+              >
+                Use Residential Address
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="form-group">
+          <label>Purchase price or estimated value (£)</label>
+          <input
+            type="number"
+            name="purchasePrice"
+            value={personData.purchasePrice}
+            onChange={(e) => handleChange(e, person)}
+            onBlur={() => calculateLoanDetails(person)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Deposit amount or equity (£)</label>
+          <input
+            type="number"
+            name="depositAmount"
+            value={personData.depositAmount}
+            onChange={(e) => handleChange(e, person)}
+            onBlur={() => calculateLoanDetails(person)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Source of deposit</label>
+          <select
+            name="depositSource"
+            value={personData.depositSource}
+            onChange={(e) => handleChange(e, person)}
+          >
+            <option value="">Select source</option>
+            <option value="Savings">Savings</option>
+            <option value="Gift">Gift</option>
+            <option value="Builder">Builder</option>
+            <option value="Equity">Equity</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <button 
+            type="button" 
+            className="calc-button" 
+            onClick={() => calculateLoanDetails(person)}
+          >
+            Calculate Loan
+          </button>
+        </div>
+
+        <div className="form-group">
+          <label>Total loan required (£)</label>
+          <input
+            type="number"
+            name="totalLoanAmount"
+            value={personData.totalLoanAmount}
+            readOnly
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Loan to Value (%)</label>
+          <input
+            type="number"
+            name="loanToValue"
+            value={personData.loanToValue}
+            readOnly
+          />
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Preferred term (years)</label>
+            <input
+              type="number"
+              name="preferredTermYears"
+              value={personData.preferredTermYears}
+              onChange={(e) => handleChange(e, person)}
+              min="1"
+              max="40"
+            />
+          </div>
+          <div className="form-group">
+            <label>Preferred term (months)</label>
+            <input
+              type="number"
+              name="preferredTermMonths"
+              value={personData.preferredTermMonths}
+              onChange={(e) => handleChange(e, person)}
+              min="0"
+              max="11"
+            />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Age you want to be mortgage free</label>
+          <input
+            type="number"
+            name="mortgageFreeAge"
+            value={personData.mortgageFreeAge}
+            onChange={(e) => handleChange(e, person)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Reason for preferred term</label>
+          <textarea
+            name="termReason"
+            value={personData.termReason}
+            onChange={(e) => handleChange(e, person)}
+            rows="3"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Thoughts on using disposable income to reduce term</label>
+          <textarea
+            name="useDisposableIncome"
+            value={personData.useDisposableIncome}
+            onChange={(e) => handleChange(e, person)}
+            rows="3"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Planned retirement age</label>
+          <input
+            type="number"
+            name="plannedRetirementAge"
+            value={personData.plannedRetirementAge}
+            onChange={(e) => handleChange(e, person)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Date of Birth</label>
+          <input
+            type="date"
+            name="dateOfBirth"
+            value={personData.dateOfBirth}
+            onChange={(e) => handleChange(e, person)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Does term extend past retirement age?</label>
+          <div className="radio-group">
+            <label>
+              <input
+                type="radio"
+                name={`${person}-termBeyondRetirement`}
+                value="Yes"
+                checked={personData.termBeyondRetirement === 'Yes'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-termBeyondRetirement`}
+                value="No"
+                checked={personData.termBeyondRetirement === 'No'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Is this a new build?</label>
+          <div>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-newBuild`}
+                value="Yes"
+                checked={personData.newBuild === 'Yes'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-newBuild`}
+                value="No"
+                checked={personData.newBuild === 'No'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        {personData.newBuild === 'Yes' && (
+          <div className="form-group">
+            <label>Are there builder incentives?</label>
+            <div className="radio-group">
+              <label>
+                <input
+                  type="radio"
+                  value="Yes"
+                  name={`${person}-builderIncentives`}
+                  checked={personData.builderIncentives === 'Yes'}
+                  onChange={(e) => handleChange(e, person)}
+                />
+                Yes
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`${person}-builderIncentives`}
+                  value="No"
+                  checked={personData.builderIncentives === 'No'}
+                  onChange={(e) => handleChange(e, person)}
+                />
+                No
+              </label>
+            </div>
+          </div>
+        )}
+
+        <div className="form-group">
+          <label>Is this a government scheme?</label>
+          <div className="radio-group">
+            <label>
+              <input
+                type="radio"
+                name={`${person}-governmentScheme`}
+                value="Yes"
+                checked={personData.governmentScheme === 'Yes'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-governmentScheme`}
+                value="No"
+                checked={personData.governmentScheme === 'No'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              name="payFeesUpfront"
+              checked={personData.payFeesUpfront}
+              onChange={(e) => handleChange(e, person)}
+            />
+            Pay fees upfront
+          </label>
+        </div>
+
+        <div className="form-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              name="increaseLoanAmount"
+              checked={personData.increaseLoanAmount}
+              onChange={(e) => handleChange(e, person)}
+            />
+            Add fees to loan
+          </label>
+        </div>
+
+        <div className="form-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              name="payFeesPartly"
+              checked={personData.payFeesPartly}
+              onChange={(e) => handleChange(e, person)}
+            />
+            Pay part fees upfront, part to loan
+          </label>
+        </div>
+
+        {personData.increaseLoanAmount && (
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="confirmFeesInterest"
+                checked={personData.confirmFeesInterest}
+                onChange={(e) => handleChange(e, person)}
+              />
+              Customer understands interest will be paid on fees added to loan
+            </label>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -129,285 +589,10 @@ const MortgageDetails = () => {
 
       <h2>Mortgage/Remortgage Details</h2>
 
-      <div className="form-group">
-        <label>Have you found a property?</label>
-        <div>
-          <label>
-            <input
-              type="radio"
-              name="foundProperty"
-              value="Yes"
-              checked={mortgageDetails.foundProperty === 'Yes'}
-              onChange={handleChange}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="foundProperty"
-              value="No"
-              checked={mortgageDetails.foundProperty === 'No'}
-              onChange={handleChange}
-            />
-            No
-          </label>
-        </div>
-      </div>
+      {renderMortgageForm('applicant', 'Your Details')}
 
-      {mortgageDetails.foundProperty === 'Yes' && (
-        <>
-          <div className="form-group">
-            <label>Address of the property being Mortgaged/Re-mortgaged</label>
-            <input
-              type="text"
-              name="propertyAddress"
-              value={mortgageDetails.propertyAddress}
-              onChange={handleChange}
-            />
-          </div>
+      {hasPartner && renderMortgageForm('partner', "Partner's Details")}
 
-          <div className="form-group">
-            <label>Address from mortgage policies</label>
-            <button className="address-button" type="button">Use Above Policy Address</button>
-          </div>
-          <div className="form-group">
-            <label>Address Search</label>
-          </div>
-          <div className="form-group">
-            <label>Postcode</label>
-            <input
-              type="text"
-              name="addressPostcode"
-              placeholder="Address Postcode"
-              value={mortgageDetails.addressPostcode}
-              onChange={ handleChange }
-            />
-          </div>
-          <div className='form-group'>
-            <button className="address-button" type="button" onClick={ findAddress }>Find Address</button>
-          </div>
-          {mortgageDetails?.address?.map((addr, index) => (
-            <div className="form-group" key={index}>
-              <label>Address {index + 1}</label>
-              <input
-                type="text"
-                name={`address${index + 1}`}
-                value={addr}
-                onChange={handleChange}
-              />
-            </div>
-          ))}
-          <div className="form-group">
-            <button className="address-button" type="button" onClick={ useResidentialAddress }>Use Residential Address</button>
-          </div>
-        </>
-      )}
-
-      <div className="form-group">
-        <label>What is the purchase price or estimated value?</label>
-        <input
-          type="number"
-          name="purchasePrice"
-          value={mortgageDetails.purchasePrice}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Amount of deposit for the new property or equity within existing property?</label>
-        <input
-          type="number"
-          name="depositAmount"
-          value={mortgageDetails.depositAmount}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Source of deposit</label>
-        <select name="depositSource" value={mortgageDetails.depositSource} onChange={handleChange}>
-          <option value="">Select Source</option>
-          <option value="Savings">Savings</option>
-          <option value="Gift">Gift</option>
-          <option value="Builder">Builder</option>
-          <option value="Equity">Equity</option>
-        </select>
-      </div>
-      <div className="form-group">
-        <button className="calc-button" type="button" onClick={calculateLoanDetails}>Calculate</button>
-      </div>
-      <div className="form-group">
-        <label>Total amount of loan required</label>
-        <input
-          type="number"
-          name="totalLoanAmount"
-          value={mortgageDetails.totalLoanAmount}
-          readOnly
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Loan to Value (%)</label>
-        <input
-          type="number"
-          name="loanToValue"
-          value={mortgageDetails.loanToValue}
-          readOnly
-        />
-      </div>
-
-      <div className="form-group">
-        <label>What would be your preferred term? (Years)</label>
-        <input
-          type="number"
-          name="preferredTermYears"
-          value={mortgageDetails.preferredTermYears}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>What would be your preferred term? (Months)</label>
-        <input
-          type="number"
-          name="preferredTermMonths"
-          value={mortgageDetails.preferredTermMonths}
-          onChange={handleChange}
-          min="0"
-          max="11"
-        />
-      </div>
-
-      <div className="form-group">
-        <label>What age would you like to have repaid your mortgage/be mortgage free?</label>
-        <input
-          type="number"
-          name="mortgageFreeAge"
-          value={mortgageDetails.mortgageFreeAge}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Please explain the reasons for your preferred term</label>
-        <textarea
-          name="termReason"
-          value={mortgageDetails.termReason}
-          onChange={handleChange}
-        />
-      </div>
-      <div className="form-group">
-        <label>What are your thoughts on using more of your disposable income to reduce the mortgage term?</label>
-        <textarea
-          name="useDisposableIncome"
-          value={mortgageDetails.useDisposableIncome}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Planned Retirement Age</label>
-        <input
-          type="number"
-          name="plannedRetirementAge"
-          value={mortgageDetails.plannedRetirementAge}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Age/Date of Birth</label>
-        <input
-          type="date"
-          name="dateOfBirth"
-          value={mortgageDetails.dateOfBirth}
-          onChange={handleChange}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Does the term extend past the Planned Retirement Age?</label>
-        <div>
-          <label><input type="radio" name="termBeyondRetirement" value="Yes" checked={mortgageDetails.termBeyondRetirement === "Yes"} onChange={handleChange} /> Yes</label>
-          <label><input type="radio" name="termBeyondRetirement" value="No" checked={mortgageDetails.termBeyondRetirement === "No"} onChange={handleChange} /> No</label>
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label>Is this a new build?</label>
-        <div>
-          <label><input type="radio" name="newBuild" value="Yes" checked={mortgageDetails.newBuild === "Yes"} onChange={handleChange} /> Yes</label>
-          <label><input type="radio" name="newBuild" value="No" checked={mortgageDetails.newBuild === "No"} onChange={handleChange} /> No</label>
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label>Are there any builder incentives?</label>
-        <div>
-          <label><input type="radio" name="builderIncentives" value="Yes" checked={mortgageDetails.builderIncentives === "Yes"} onChange={handleChange} /> Yes</label>
-          <label><input type="radio" name="builderIncentives" value="No" checked={mortgageDetails.builderIncentives === "No"} onChange={handleChange} /> No</label>
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label>Is this a Government funded scheme?</label>
-        <div>
-          <label><input type="radio" name="governmentScheme" value="Yes" checked={ mortgageDetails.governmentScheme === "Yes" } onChange={handleChange} /> Yes</label>
-          <label><input type="radio" name="governmentScheme" value="No" checked={ mortgageDetails.governmentScheme === "No" } onChange={handleChange} /> No</label>
-        </div>
-      </div>
-
-      <h3>Your Preference</h3>
-      <div className="form-group">
-        <label>
-          <input
-            type="checkbox"
-            name="payFeesUpfront"
-            checked={mortgageDetails.payFeesUpfront}
-            onChange={handleChange}
-          />
-          You can pay any fees or charges up front
-        </label>
-      </div>
-
-      <div className="form-group">
-        <label>
-          <input
-            type="checkbox"
-            name="increaseLoanAmount"
-            checked={mortgageDetails.increaseLoanAmount}
-            onChange={handleChange}
-          />
-          You can increase the amount you borrow by adding fees or charges to the loan (subject to lender's agreement)
-        </label>
-      </div>
-
-      <div className="form-group">
-        <label>
-          <input
-            type="checkbox"
-            name="payFeesPartly"
-            checked={mortgageDetails.payFeesPartly}
-            onChange={handleChange}
-          />
-          You can pay part of any fees or charges up front and add part to the loan
-        </label>
-      </div>
-
-      {mortgageDetails.increaseLoanAmount && (
-        <div className="form-group">
-          <label>
-            <input
-              type="checkbox"
-              name="confirmFeesInterest"
-              checked={mortgageDetails.confirmFeesInterest}
-              onChange={handleChange}
-            />
-            Please confirm that the customer is aware that by adding fees to the loan, interest will be paid over the mortgage term
-          </label>
-        </div>
-      )}
       <div className='form-buttons'>
         <div className='form-buttons-card'>
           <button className="back-button" type="button" onClick={() => navigate(-1)}>Back</button>
