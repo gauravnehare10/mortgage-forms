@@ -3,73 +3,74 @@ import '../PersonalDetails/PersonalDetails.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import useFormStore from '../store';
-import SecondaryOccupationFields from './SecOccupationForm/SecOccupationForm';
 import FormButtons from '../inc/FormButtons/FormButton';
+
+const initialSecondaryOccupation = {
+  hasAddEarnedIncome: '',
+  secondaryEmploymentStatus: '',
+  selfEmployedType: '',
+  occupationStatus: '',
+  secondaryOccupationTitle: '',
+  hoursOfWork: '',
+  secondaryEmployerName: '',
+  secondaryEmployerPostcode: '',
+  secondaryEmployerAddress: ['', '', '', '', ''],
+};
 
 const SecOccupation = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
   
-  // State for both client and partner (if exists)
-  const [secondaryOccupationData, setSecondaryOccupationData] = useState({
-    client: {
-      hasAddEarnedIncome: '',
-      secondaryEmploymentStatus: '',
-      selfEmployedType: '',
-      occupationStatus: '',
-      secondaryOccupationTitle: '',
-      hoursOfWork: '',
-      secondaryEmployerName: '',
-      secondaryEmployerPostcode: '',
-      secondaryEmployerAddress: ['', '', '', '', ''],
-    },
-    partner: {
-      hasAddEarnedIncome: '',
-      secondaryEmploymentStatus: '',
-      selfEmployedType: '',
-      occupationStatus: '',
-      secondaryOccupationTitle: '',
-      hoursOfWork: '',
-      secondaryEmployerName: '',
-      secondaryEmployerPostcode: '',
-      secondaryEmployerAddress: ['', '', '', '', ''],
-    },
+  const [hasPartner, setHasPartner] = useState(false);
+  const [secondaryOccupation, setSecondaryOccupation] = useState({
+    applicant: { ...initialSecondaryOccupation },
+    partner: { ...initialSecondaryOccupation }
   });
 
-  // Check if there's a partner
-  const hasPartner = formData.mainDetails?.partners?.length > 0;
-
   useEffect(() => {
-    fetchFormData("secondaryOccupationData");
     fetchFormData("mainDetails");
+    fetchFormData("secondaryOccupationData"); // This should contain both applicant and partner data
   }, [fetchFormData]);
   
   useEffect(() => {
-    if (formData.secondaryOccupationData) {
-      setSecondaryOccupationData(formData.secondaryOccupationData);
+    if (formData.mainDetails) {
+      setHasPartner(formData.mainDetails.partners?.length > 0);
     }
-  }, [formData.secondaryOccupationData]);
+    
+    if (formData.secondaryOccupationData) {
+      setSecondaryOccupation({
+        applicant: {
+          ...initialSecondaryOccupation,
+          ...(formData.secondaryOccupationData.applicant || {})
+        },
+        partner: {
+          ...initialSecondaryOccupation,
+          ...(formData.secondaryOccupationData.partner || {})
+        }
+      });
+    }
+  }, [formData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    updateFormData("secondaryOccupationData", secondaryOccupationData);
+    // Save only secondary occupation data
+    updateFormData("secondaryOccupationData", secondaryOccupation);
   };
 
-  const handleAddressChange = (index, value, isPartner = false) => {
-    setSecondaryOccupationData((prev) => ({
+  const handleAddressChange = (index, value, person = 'applicant') => {
+    const updatedAddress = [...(secondaryOccupation[person].secondaryEmployerAddress || ['', '', '', '', ''])];
+    updatedAddress[index] = value;
+    
+    setSecondaryOccupation(prev => ({
       ...prev,
-      [isPartner ? 'partner' : 'client']: {
-        ...prev[isPartner ? 'partner' : 'client'],
-        secondaryEmployerAddress: [
-          ...prev[isPartner ? 'partner' : 'client'].secondaryEmployerAddress.slice(0, index),
-          value,
-          ...prev[isPartner ? 'partner' : 'client'].secondaryEmployerAddress.slice(index + 1),
-        ],
-      },
+      [person]: {
+        ...prev[person],
+        secondaryEmployerAddress: updatedAddress,
+      }
     }));
   };
 
-  const findAddress = async (postcode, isPartner = false) => {
+  const findAddress = async (postcode, person = 'applicant') => {
     if (!postcode || typeof postcode !== 'string') {
       alert('Please enter a valid postcode.');
       return;
@@ -87,13 +88,13 @@ const SecOccupation = () => {
         '',
         'United Kingdom',
       ];
-
-      setSecondaryOccupationData((prev) => ({
+      
+      setSecondaryOccupation(prev => ({
         ...prev,
-        [isPartner ? 'partner' : 'client']: {
-          ...prev[isPartner ? 'partner' : 'client'],
+        [person]: {
+          ...prev[person],
           secondaryEmployerAddress: updatedAddress,
-        },
+        }
       }));
     } catch (error) {
       alert('Error fetching address. Please check the postcode.');
@@ -101,22 +102,236 @@ const SecOccupation = () => {
     }
   };
 
-  // Logic for client
-  const shouldAskClientQuestions =
-    secondaryOccupationData.client.hasAddEarnedIncome === 'Yes' &&
-    (secondaryOccupationData.client.secondaryEmploymentStatus === 'Employed' ||
-      (secondaryOccupationData.client.secondaryEmploymentStatus === 'Self-Employed' &&
-        secondaryOccupationData.client.selfEmployedType === 'Director (less than 20% shareholding)') ||
-      secondaryOccupationData.client.secondaryEmploymentStatus === 'Temporary');
+  const shouldAskQuestions = (data) => {
+    return data?.hasAddEarnedIncome === 'Yes' &&
+      (data?.secondaryEmploymentStatus === 'Employed' ||
+        (data?.secondaryEmploymentStatus === 'Self-Employed' &&
+          data?.selfEmployedType === 'Director (less than 20% shareholding)') ||
+        data?.secondaryEmploymentStatus === 'Temporary');
+  };
 
-  // Logic for partner (if exists)
-  const shouldAskPartnerQuestions =
-    hasPartner &&
-    secondaryOccupationData.partner.hasAddEarnedIncome === 'Yes' &&
-    (secondaryOccupationData.partner.secondaryEmploymentStatus === 'Employed' ||
-      (secondaryOccupationData.partner.secondaryEmploymentStatus === 'Self-Employed' &&
-        secondaryOccupationData.partner.selfEmployedType === 'Director (less than 20% shareholding)') ||
-      secondaryOccupationData.partner.secondaryEmploymentStatus === 'Temporary');
+  const renderSecondaryOccupationForm = (person, title) => {
+    const data = secondaryOccupation[person] || { ...initialSecondaryOccupation };
+    
+    return (
+      <>
+        <h4>{title}</h4>
+        <div className="form-group">
+          <label>Do you have any additional Earned income?</label>
+          <div>
+            <label>
+              <input
+                type="radio"
+                name={`hasAddEarnedIncome-${person}`}
+                value="Yes"
+                checked={data.hasAddEarnedIncome === 'Yes'}
+                onChange={(e) =>
+                  setSecondaryOccupation(prev => ({
+                    ...prev,
+                    [person]: {
+                      ...prev[person],
+                      hasAddEarnedIncome: e.target.value,
+                    }
+                  }))
+                }
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`hasAddEarnedIncome-${person}`}
+                value="No"
+                checked={data.hasAddEarnedIncome === 'No'}
+                onChange={(e) =>
+                  setSecondaryOccupation(prev => ({
+                    ...prev,
+                    [person]: {
+                      ...prev[person],
+                      hasAddEarnedIncome: e.target.value,
+                    }
+                  }))
+                }
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        {data.hasAddEarnedIncome === 'Yes' && (
+          <>
+            <div className="form-group">
+              <label>Secondary Employment Status:</label>
+              <select
+                value={data.secondaryEmploymentStatus || ''}
+                onChange={(e) =>
+                  setSecondaryOccupation(prev => ({
+                    ...prev,
+                    [person]: {
+                      ...prev[person],
+                      secondaryEmploymentStatus: e.target.value,
+                    }
+                  }))
+                }
+              >
+                <option value="">Select Status</option>
+                <option value="Employed">Employed</option>
+                <option value="Self-Employed">Self-Employed</option>
+                <option value="Temporary">Temporary</option>
+              </select>
+            </div>
+
+            {data.secondaryEmploymentStatus === 'Self-Employed' && (
+              <div className="form-group">
+                <label>Self-Employed Type:</label>
+                <select
+                  value={data.selfEmployedType || ''}
+                  onChange={(e) =>
+                    setSecondaryOccupation(prev => ({
+                      ...prev,
+                      [person]: {
+                        ...prev[person],
+                        selfEmployedType: e.target.value,
+                      }
+                    }))
+                  }
+                >
+                  <option value="">Select Type</option>
+                  <option value="Director (20% shareholding +)">
+                    Director (20% shareholding +)
+                  </option>
+                  <option value="Director (less than 20% shareholding)">
+                    Director (less than 20% shareholding)
+                  </option>
+                  <option value="Sole Trader">Sole Trader</option>
+                  <option value="Partnership">Partnership</option>
+                </select>
+              </div>
+            )}
+
+            {shouldAskQuestions(data) && (
+              <>
+                <div className="form-group">
+                  <label>Occupation Status:</label>
+                  <select
+                    value={data.occupationStatus || ''}
+                    onChange={(e) =>
+                      setSecondaryOccupation(prev => ({
+                        ...prev,
+                        [person]: {
+                          ...prev[person],
+                          occupationStatus: e.target.value,
+                        }
+                      }))
+                    }
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Permanent">Permanent</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Part-Time">Part-Time</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Secondary Occupation Title:</label>
+                  <input
+                    type="text"
+                    value={data.secondaryOccupationTitle || ''}
+                    onChange={(e) =>
+                      setSecondaryOccupation(prev => ({
+                        ...prev,
+                        [person]: {
+                          ...prev[person],
+                          secondaryOccupationTitle: e.target.value,
+                        }
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Hours of Work:</label>
+                  <input
+                    type="number"
+                    value={data.hoursOfWork || ''}
+                    onChange={(e) =>
+                      setSecondaryOccupation(prev => ({
+                        ...prev,
+                        [person]: {
+                          ...prev[person],
+                          hoursOfWork: e.target.value,
+                        }
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Name of Secondary Employer:</label>
+                  <input
+                    type="text"
+                    value={data.secondaryEmployerName || ''}
+                    onChange={(e) =>
+                      setSecondaryOccupation(prev => ({
+                        ...prev,
+                        [person]: {
+                          ...prev[person],
+                          secondaryEmployerName: e.target.value,
+                        }
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Address Search (Postcode):</label>
+                  <input
+                    type="text"
+                    value={data.secondaryEmployerPostcode || ''}
+                    onChange={(e) =>
+                      setSecondaryOccupation(prev => ({
+                        ...prev,
+                        [person]: {
+                          ...prev[person],
+                          secondaryEmployerPostcode: e.target.value,
+                        }
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="form-group">
+                  <button
+                    type="button"
+                    className='address-button'
+                    onClick={() =>
+                      findAddress(data.secondaryEmployerPostcode, person)
+                    }
+                  >
+                    Find Address
+                  </button>
+                </div>
+                {(data.secondaryEmployerAddress || ['', '', '', '', '']).map(
+                  (addr, addrIdx) => (
+                    <div key={addrIdx} className="form-group">
+                      <label>Address {addrIdx + 1}:</label>
+                      <input
+                        type="text"
+                        value={addr || ''}
+                        onChange={(e) =>
+                          handleAddressChange(addrIdx, e.target.value, person)
+                        }
+                      />
+                    </div>
+                  )
+                )}
+              </>
+            )}
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
     <form onSubmit={handleSubmit} className="form-container">
@@ -126,34 +341,16 @@ const SecOccupation = () => {
       />
 
       <h3>Secondary Occupation Details</h3>
+      
+      {renderSecondaryOccupationForm('applicant', 'Your Secondary Occupation')}
 
-      {/* Client's secondary occupation */}
-      <h4>Client 1 (Your) Secondary Occupation</h4>
-      <SecondaryOccupationFields
-        secondaryOccupationData={secondaryOccupationData.client}
-        setSecondaryOccupationData={(data) =>
-          setSecondaryOccupationData((prev) => ({ ...prev, client: data }))
-        }
-        handleAddressChange={(index, value) => handleAddressChange(index, value, false)}
-        findAddress={(postcode) => findAddress(postcode, false)}
-        shouldAskQuestions={shouldAskClientQuestions}
+      {hasPartner && renderSecondaryOccupationForm('partner', "Partner's Secondary Occupation")}
+
+      
+      <FormButtons
+        onBack={() => navigate(-1)}
+        onNext={() => navigate('/mortgage/add-details/other-monthly-income')}
       />
-
-      {/* Partner's secondary occupation (if partner exists) */}
-      {hasPartner && (
-        <>
-          <h4>Client 2 (Partner) Secondary Occupation</h4>
-          <SecondaryOccupationFields
-            secondaryOccupationData={secondaryOccupationData.partner}
-            setSecondaryOccupationData={(data) =>
-              setSecondaryOccupationData((prev) => ({ ...prev, partner: data }))
-            }
-            handleAddressChange={(index, value) => handleAddressChange(index, value, true)}
-            findAddress={(postcode) => findAddress(postcode, true)}
-            shouldAskQuestions={shouldAskPartnerQuestions}
-          />
-        </>
-      )}
     </form>
   );
 };
