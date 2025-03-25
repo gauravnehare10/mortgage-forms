@@ -3,37 +3,163 @@ import '../../PersonalDetails/PersonalDetails.css';
 import { useNavigate } from 'react-router-dom';
 import useFormStore from '../../store';
 
+const initialEarlyRepayment = {
+  repayPlans: '',
+  moveHome: '',
+  ercExplanation: '',
+  preferredReason: '',
+};
+
 const EarlyRepayment = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
-  const [earlyRepayment, setEarlyRepayment] = useState({
-    repayPlans: '',
-    moveHome: '',
-    ercExplanation: '',
-    preferredReason: '',
+  const [hasPartner, setHasPartner] = useState(false);
+  const [earlyRepaymentData, setEarlyRepaymentData] = useState({
+    applicant: { ...initialEarlyRepayment },
+    partner: { ...initialEarlyRepayment }
   });
 
-  const handleChange = (e) => {
+  const handleChange = (e, person = 'applicant') => {
     const { name, value } = e.target;
-    setEarlyRepayment((prev) => ({
+    // Remove the person prefix if present
+    const fieldName = name.replace(`${person}-`, '');
+    setEarlyRepaymentData(prev => ({
       ...prev,
-      [name]: value,
+      [person]: {
+        ...prev[person],
+        [fieldName]: value,
+      }
     }));
-  };
+  };  
 
   useEffect(() => {
+    fetchFormData("mainDetails");
     fetchFormData("earlyRepaymentData");
   }, [fetchFormData]);
 
   useEffect(() => {
-    if (formData.earlyRepaymentData) {
-      setEarlyRepayment(formData.earlyRepaymentData)
+    if (formData.mainDetails) {
+      setHasPartner(formData.mainDetails.partners?.length > 0);
     }
-  }, [formData.earlyRepaymentData]);
+    
+    if (formData.earlyRepaymentData) {
+      setEarlyRepaymentData({
+        applicant: {
+          ...initialEarlyRepayment,
+          ...(formData.earlyRepaymentData.applicant || {})
+        },
+        partner: {
+          ...initialEarlyRepayment,
+          ...(formData.earlyRepaymentData.partner || {})
+        }
+      });
+    }
+  }, [formData.earlyRepaymentData, formData.mainDetails]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    updateFormData('earlyRepaymentData', earlyRepayment);
+    updateFormData('earlyRepaymentData', earlyRepaymentData);
+  };
+
+  const renderEarlyRepaymentForm = (person, title) => {
+    const personData = earlyRepaymentData[person] || { ...initialEarlyRepayment };
+    
+    return (
+      <>
+        <h4>{title}</h4>
+
+        {/* Question 1 */}
+        <div className="form-group">
+          <label>Do you have any plans to repay part or all of the mortgage in the foreseeable future?</label>
+          <div>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-repayPlans`}  // Changed to include person prefix
+                value="Yes"
+                checked={personData.repayPlans === 'Yes'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-repayPlans`}  // Changed to include person prefix
+                value="No"
+                checked={personData.repayPlans === 'No'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        {/* Question 2 */}
+        <div className="form-group">
+          <label>Are you likely to move home within the foreseeable future (other than this transaction)?</label>
+          <div>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-moveHome`}  // Changed to include person prefix
+                value="Yes"
+                checked={personData.moveHome === 'Yes'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`${person}-moveHome`}  // Changed to include person prefix
+                value="No"
+                checked={personData.moveHome === 'No'}
+                onChange={(e) => handleChange(e, person)}
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        {/* Question 3 */}
+        <div className="form-group">
+          <label>Please explain to your customer what an ERC is and in the Customer's Own Words, record the customer's attitude in terms of preferences and trade-offs between improved rate and potential ERC</label>
+          <textarea
+            name="ercExplanation"
+            value={personData.ercExplanation}
+            onChange={(e) => handleChange(e, person)}
+            rows="4"
+          />
+        </div>
+
+        <h5>Product Types</h5>
+
+        {/* Question 4 */}
+        <label>Please tell me:</label>
+        <div className="form-group">
+          <label>
+              <ul>
+              <li>
+                  What is your preference?
+              </li>
+              <li>
+                  Why? Please note the reason for this preference.
+              </li>
+              <li>
+                  Having explained the available terms and taking into account your future anticipated plans, what term would you prefer to be tied in for and why?
+              </li>
+              </ul>
+          </label>
+          <textarea
+              name="preferredReason"
+              value={personData.preferredReason}
+              onChange={(e) => handleChange(e, person)}
+              rows="3"
+          />
+        </div>
+      </>
+    );
   };
 
   return (
@@ -50,96 +176,10 @@ const EarlyRepayment = () => {
 
       <h3>Early Replacement and Moving Home</h3>
 
-      {/* Question 1 */}
-      <div className="form-group">
-        <label>Do you have any plans to repay part or all of the mortgage in the foreseeable future?</label>
-        <div>
-          <label>
-            <input
-              type="radio"
-              name="repayPlans"
-              value="Yes"
-              checked={earlyRepayment.repayPlans === 'Yes'}
-              onChange={handleChange}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="repayPlans"
-              value="No"
-              checked={earlyRepayment.repayPlans === 'No'}
-              onChange={handleChange}
-            />
-            No
-          </label>
-        </div>
-      </div>
+      {renderEarlyRepaymentForm('applicant', 'Your Details')}
 
-      {/* Question 2 */}
-      <div className="form-group">
-        <label>Are you likely to move home within the foreseeable future (other than this transaction)?</label>
-        <div>
-          <label>
-            <input
-              type="radio"
-              name="moveHome"
-              value="Yes"
-              checked={earlyRepayment.moveHome === 'Yes'}
-              onChange={handleChange}
-            />
-            Yes
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="moveHome"
-              value="No"
-              checked={earlyRepayment.moveHome === 'No'}
-              onChange={handleChange}
-            />
-            No
-          </label>
-        </div>
-      </div>
+      {hasPartner && renderEarlyRepaymentForm('partner', "Partner's Details")}
 
-      {/* Question 3 */}
-      <div className="form-group">
-        <label>Please explain to your customer what an ERC is and in the Customer's Own Words, record the customer's attitude in terms of preferences and trade-offs between improved rate and potential ERC</label>
-        <textarea
-          name="ercExplanation"
-          value={earlyRepayment.ercExplanation}
-          onChange={handleChange}
-          rows="4"
-        />
-      </div>
-
-      <h3>Product Types</h3>
-
-      {/* Question 4 */}
-      <label>Please tell me:</label>
-      <div className="form-group">
-        <label>
-            <ul>
-            <li>
-                What is your preference?
-            </li>
-            <li>
-                Why? Please note the reason for this preference.
-            </li>
-            <li>
-                Having explained the available terms and taking into account your future anticipated plans, what term would you prefer to be tied in for and why?
-            </li>
-            </ul>
-        </label>
-        <textarea
-            name="preferredReason"
-            value={earlyRepayment.preferredReason}
-            onChange={handleChange}
-            rows="3"
-        />
-      </div>
       <div className='form-buttons'>
         <div className='form-buttons-card'>
           <button className="back-button" type="button" onClick={() => navigate(-1)}>Back</button>

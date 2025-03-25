@@ -3,35 +3,90 @@ import '../../PersonalDetails/PersonalDetails.css';
 import { useNavigate } from 'react-router-dom';
 import useFormStore from '../../store';
 
+const initialBudgetData = {
+  netDisposableIncome: 0,
+  monthlyMortgageAllocation: 0,
+};
+
 const EstablishBudget = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
-  const [establishBudget, setEstablishBudget] = useState({
-    netDisposableIncome: 0,
-    monthlyMortgageAllocation: 0,
+  const [hasPartner, setHasPartner] = useState(false);
+  const [budgetData, setBudgetData] = useState({
+    applicant: { ...initialBudgetData },
+    partner: { ...initialBudgetData }
   });
 
-  const handleChange = (e) => {
+  const handleChange = (e, person = 'applicant') => {
     const { name, value } = e.target;
-    setEstablishBudget((prev) => ({
+    setBudgetData(prev => ({
       ...prev,
-      [name]: value,
+      [person]: {
+        ...prev[person],
+        [name]: value,
+      }
     }));
   };
 
   useEffect(() => {
+    fetchFormData("mainDetails");
     fetchFormData("establishBudgetData");
   }, [fetchFormData]);
 
   useEffect(() => {
-    if (formData.establishBudgetData) {
-      setEstablishBudget(formData.establishBudgetData)
+    if (formData.mainDetails) {
+      setHasPartner(formData.mainDetails.partners?.length > 0);
     }
-  }, [formData.establishBudgetData]);
+    
+    if (formData.establishBudgetData) {
+      setBudgetData({
+        applicant: {
+          ...initialBudgetData,
+          ...(formData.establishBudgetData.applicant || {})
+        },
+        partner: {
+          ...initialBudgetData,
+          ...(formData.establishBudgetData.partner || {})
+        }
+      });
+    }
+  }, [formData.establishBudgetData, formData.mainDetails]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    updateFormData('establishBudgetData', establishBudget);
+    updateFormData('establishBudgetData', budgetData);
+  };
+
+  const renderBudgetForm = (person, title) => {
+    const personData = budgetData[person] || { ...initialBudgetData };
+    
+    return (
+      <>
+        <h4>{title}</h4>
+        
+        {/* NET Disposable Income */}
+        <div className="form-group">
+          <label>Available NET Disposable Income</label>
+          <input
+            type="number"
+            name="netDisposableIncome"
+            value={personData.netDisposableIncome}
+            onChange={(e) => handleChange(e, person)}
+          />
+        </div>
+
+        {/* Monthly Mortgage Allocation */}
+        <div className="form-group">
+          <label>How much do you believe you can allocate towards your monthly mortgage payments?</label>
+          <input
+            type="number"
+            name="monthlyMortgageAllocation"
+            value={personData.monthlyMortgageAllocation}
+            onChange={(e) => handleChange(e, person)}
+          />
+        </div>
+      </>
+    );
   };
 
   return (
@@ -48,26 +103,18 @@ const EstablishBudget = () => {
 
       <h3>Establishing a Budget</h3>
 
-      {/* NET Disposable Income */}
-      <div className="form-group">
-        <label>Available NET Disposable Income</label>
-        <input
-          type="number"
-          name="netDisposableIncome"
-          value={establishBudget.netDisposableIncome}
-          onChange={handleChange}
-        />
-      </div>
+      {renderBudgetForm('applicant', 'Your Budget')}
 
-      {/* Monthly Mortgage Allocation */}
-      <div className="form-group">
-        <label>How much do you believe you can allocate towards your monthly mortgage payments?</label>
-        <input
-          type="number"
-          name="monthlyMortgageAllocation"
-          value={establishBudget.monthlyMortgageAllocation}
-          onChange={handleChange}
-        />
+      {hasPartner && renderBudgetForm('partner', "Partner's Budget")}
+
+      <div className='form-buttons'>
+        <div className='form-buttons-card'>
+          <button className="back-button" type="button" onClick={() => navigate(-1)}>Back</button>
+        </div>
+        <div className='form-buttons-card'>
+          <button className="form-submit" type="submit">Save</button>
+          <button className="next-button" type="button" onClick={() => navigate('/mortgage/add-details/mortgage-details')}>Next</button>
+        </div>
       </div>
     </form>
   );
