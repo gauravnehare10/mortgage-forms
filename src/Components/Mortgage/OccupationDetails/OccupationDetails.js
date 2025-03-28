@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import '../PersonalDetails/PersonalDetails.css';
 import useFormStore from '../store';
 import OccupationForm from './OccupationForm/OccupationForm';
 import FormButtons from '../inc/FormButtons/FormButton';
+import validateOccupationData from './OccupationForm/Validations';
 
 const Occupation = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
+  const [errors, setErrors] = useState({});
+  const errorRef = useRef(null);
 
   const initialEmploymentData = {
     status: '',
@@ -140,6 +143,17 @@ const Occupation = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const validationErrors = validateOccupationData(occupationData, hasPartner);
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+      return;
+    }
     updateFormData("occupationData", occupationData);
     navigate('/mortgage/add-details/employer-benefit');
   };
@@ -185,6 +199,13 @@ const Occupation = () => {
       />
 
       {/* Main Client Occupation */}
+      <div className="form-group">
+        {Object.keys(errors).length > 0 && (
+          <div ref={errorRef} className="error-message">
+            {Object.values(errors).join(", ")}
+          </div>
+        )}
+      </div>
       <OccupationForm
         data={occupationData.client}
         handleChange={handleChange('client')}

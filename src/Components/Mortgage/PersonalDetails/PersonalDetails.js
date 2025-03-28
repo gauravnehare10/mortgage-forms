@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useFormStore from '../store';
 import PersonalDetailsForm from './PersonalDetailsForm/PersonalDetailsForm';
 import DependentForm from './DependentForm/DependentForm';
 import FormButtons from '../inc/FormButtons/FormButton';
 import './PersonalDetails.css';
+import { validatePersonalDetails } from './PersonalDetailsForm/Validations';
 
 const PersonalDetails = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
+  const [errors, setErrors] = useState({});
+  const errorRef = useRef(null);
 
   // Main client state
   const [mainClientDetails, setMainClientDetails] = useState({
@@ -175,6 +178,16 @@ const PersonalDetails = () => {
   // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault();
+    const validationErrors = validatePersonalDetails(mainClientDetails, partnerDetails, hasPartner);
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        setTimeout(() => {
+          if (errorRef.current) {
+            errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 100);
+        return;
+      }
     updateFormData('personalDetails', {
       mainClientDetails,
       partnerDetails: hasPartner ? partnerDetails : null,
@@ -184,6 +197,7 @@ const PersonalDetails = () => {
 
   return (
     <form onSubmit={handleSubmit} className="form-container">
+      
       <FormButtons
         onBack={() => navigate(-1)}
         onNext={() => navigate('/mortgage/add-details/residential')}
@@ -191,6 +205,13 @@ const PersonalDetails = () => {
 
       {/* Main Client Fields */}
       <h3>Main Client Details</h3>
+      <div className="form-group">
+        {Object.keys(errors).length > 0 && (
+          <div ref={errorRef} className="error-message">
+            {Object.values(errors).join(", ")}
+          </div>
+        )}
+      </div>
       <PersonalDetailsForm
         personalDetails={mainClientDetails}
         handleChange={handleMainClientChange}

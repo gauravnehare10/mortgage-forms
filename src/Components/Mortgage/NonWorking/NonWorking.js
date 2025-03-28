@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import '../PersonalDetails/PersonalDetails.css';
 import { useNavigate } from 'react-router-dom';
 import useFormStore from '../store';
+import validateNonWorking from './NonWorkingForm/Validations';
+import FormButtons from '../inc/FormButtons/FormButton';
 
 const initialNonWorkingData = {
   recOtherIncome: '',
@@ -12,6 +14,10 @@ const initialNonWorkingData = {
 const NonWorking = () => {
   const { formData, fetchFormData, updateFormData } = useFormStore();
   const navigate = useNavigate();
+
+  const [errors, setErrors] = useState({});
+  const errorRef = useRef(null);
+
   const [hasPartner, setHasPartner] = useState(false);
   const [nonWorkingData, setNonWorkingData] = useState({
     applicant: { ...initialNonWorkingData },
@@ -55,7 +61,18 @@ const NonWorking = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Clear fields if "No" is selected for either applicant or partner
+    
+    const validationErrors = validateNonWorking(nonWorkingData.applicant, nonWorkingData.partner, hasPartner);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+      return;
+    }
     const updatedData = { ...nonWorkingData };
     
     ['applicant', 'partner'].forEach(person => {
@@ -69,6 +86,7 @@ const NonWorking = () => {
     });
 
     updateFormData('nonWorkingData', updatedData);
+    navigate("/mortgage/add-details/total-income");
   };
 
   const renderNonWorkingForm = (person, title) => {
@@ -142,21 +160,25 @@ const NonWorking = () => {
         </div>
       </div>
 
+      <div className="form-group">
+        {Object.keys(errors).length > 0 && (
+          <div ref={errorRef} className="error-message">
+            {Object.values(errors).join(", ")}
+          </div>
+        )}
+      </div>
+
       <h3>Non-Working - Other Income Source</h3>
 
       {renderNonWorkingForm('applicant', 'Your Details')}
 
       {hasPartner && renderNonWorkingForm('partner', "Partner's Details")}
 
-      <div className='form-buttons'>
-        <div className='form-buttons-card'>
-          <button className="back-button" type="button" onClick={() => navigate(-1)}>Back</button>
-        </div>
-        <div className='form-buttons-card'>
-          <button className="form-submit" type="submit">Save</button>
-          <button className="next-button" type="button" onClick={() => navigate('/mortgage/add-details/total-income')}>Next</button>
-        </div>
-      </div>
+      <FormButtons 
+        onNext={() => navigate('/mortgage/add-details/total-income')}
+        onBack={() => navigate(-1)}
+      />
+      
     </form>
   );
 };

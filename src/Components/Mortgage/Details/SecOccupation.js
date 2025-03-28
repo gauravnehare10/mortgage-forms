@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import '../PersonalDetails/PersonalDetails.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import useFormStore from '../store';
 import FormButtons from '../inc/FormButtons/FormButton';
+import validateSecOccupation from './SecOccupationForm/Validations';
 
 const initialSecondaryOccupation = {
   hasAddEarnedIncome: '',
@@ -20,6 +21,8 @@ const initialSecondaryOccupation = {
 const SecOccupation = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
+  const [errors, setErrors] = useState({});
+  const errorRef = useRef(null);
   
   const [hasPartner, setHasPartner] = useState(false);
   const [secondaryOccupation, setSecondaryOccupation] = useState({
@@ -53,9 +56,23 @@ const SecOccupation = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Save only secondary occupation data
+    
+    const validationErrors = validateSecOccupation(secondaryOccupation.applicant, secondaryOccupation.partner, hasPartner, shouldAskQuestions);
+  
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+      return;
+    }
+  
     updateFormData("secondaryOccupationData", secondaryOccupation);
+    navigate('/mortgage/add-details/other-monthly-income');
   };
+  
 
   const handleAddressChange = (index, value, person = 'applicant') => {
     const updatedAddress = [...(secondaryOccupation[person].secondaryEmployerAddress || ['', '', '', '', ''])];
@@ -115,6 +132,14 @@ const SecOccupation = () => {
     
     return (
       <>
+        <div className="form-group">
+          {Object.keys(errors).length > 0 && (
+            <div ref={errorRef} className="error-message">
+              {Object.values(errors).join(", ")}
+            </div>
+          )}
+        </div>
+
         <h4>{title}</h4>
         <div className="form-group">
           <label>Do you have any additional Earned income?</label>

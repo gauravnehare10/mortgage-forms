@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../PersonalDetails/PersonalDetails.css';
 import useFormStore from '../store';
 import EmployerBenefitForm from './EmployerBenefitForm/EmployerBenefitForm';
 import FormButtons from '../inc/FormButtons/FormButton';
+import validateEmployerBenefit from './EmployerBenefitForm/Validations';
 
 const EmployerBenefit = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
+  const errorRef = useRef(null);
+  const [errors, setErrors] = useState({});
+  
 
   const initialBenefitData = {
     sickPayOtherThanSSP: '',
@@ -103,6 +107,17 @@ const EmployerBenefit = () => {
   // Submit both client and partner data
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const validationErrors = validateEmployerBenefit(benefitData, hasPartner);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+      return;
+    }
     await updateFormData("employerBenefitData", benefitData);
   };
 
@@ -112,7 +127,13 @@ const EmployerBenefit = () => {
         onBack={() => navigate(-1)}
         onNext={handleNext}
       />
-      
+      <div className="form-group">
+        {Object.keys(errors).length > 0 && (
+          <div ref={errorRef} className="error-message">
+            {Object.values(errors).join(", ")}
+          </div>
+        )}
+      </div>
       {/* Main Client Form */}
       <EmployerBenefitForm
         data={benefitData.client}

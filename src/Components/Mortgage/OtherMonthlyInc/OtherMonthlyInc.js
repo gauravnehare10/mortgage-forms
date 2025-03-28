@@ -1,32 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../PersonalDetails/PersonalDetails.css';
 import useFormStore from '../store';
+import { validateOtherMonthlyIncome } from './OtherMonthlyIncForm/Validations';
 
 const initialIncomeData = {
-  occupationalPension: 0,
-  personalPension: 0,
-  statePension: 0,
-  investments: 0,
-  maintenance: 0,
-  rentalIncome: 0,
+  occupationalPension: '',
+  personalPension: '',
+  statePension: '',
+  investments: '',
+  maintenance: '',
+  rentalIncome: '',
   receivesStateBenefits: '',
-  totalOtherIncome: 0,
+  totalOtherIncome: '',
   stateBenefits: {
-    childBenefit: 0,
-    childTaxCredits: 0,
-    workingTaxCredits: 0,
-    disabilityLivingAllowance: 0,
-    attendanceAllowance: 0,
-    housingBenefit: 0,
-    employmentSupportAllowance: 0,
-    other: 0,
+    childBenefit: '',
+    childTaxCredits: '',
+    workingTaxCredits: '',
+    disabilityLivingAllowance: '',
+    attendanceAllowance: '',
+    housingBenefit: '',
+    employmentSupportAllowance: '',
+    other: '',
   },
 };
 
 const OtherMonthlyInc = () => {
   const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
+
+  const [errors, setErrors] = useState({})
+  const errorRef = useRef();
 
   const [hasPartner, setHasPartner] = useState(false);
   const [incomeData, setIncomeData] = useState({
@@ -76,7 +80,17 @@ const OtherMonthlyInc = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Clear state benefits if "No" is selected for either applicant or partner
+    const validationErrors = validateOtherMonthlyIncome(incomeData, hasPartner);
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+      return;
+    }
     const updatedData = { ...incomeData };
     
     ['applicant', 'partner'].forEach(person => {
@@ -90,6 +104,8 @@ const OtherMonthlyInc = () => {
 
     setIncomeData(updatedData);
     updateFormData('otherMonthlyIncome', updatedData);
+    console.log(updatedData);
+    navigate('/mortgage/add-details/other-income-source');
   };
 
   useEffect(() => {
@@ -223,6 +239,14 @@ const OtherMonthlyInc = () => {
           <button className="form-submit" type="submit">Save</button>
           <button className="next-button" type="button" onClick={() => navigate('/mortgage/add-details/other-income-source')}>Next</button>
         </div>
+      </div>
+
+      <div className="form-group">
+        {Object.keys(errors).length > 0 && (
+          <div ref={errorRef} className="error-message">
+            {Object.values(errors).join(", ")}
+          </div>
+        )}
       </div>
 
       <h3>Other Monthly Income Details</h3>
