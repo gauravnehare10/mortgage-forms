@@ -50,11 +50,12 @@ const NonWorking = () => {
 
   const handleChange = (e, person = 'applicant') => {
     const { name, value } = e.target;
+    const fieldName = name.replace(`${person}-`, '');
     setNonWorkingData(prev => ({
       ...prev,
       [person]: {
         ...prev[person],
-        [name]: value,
+        [fieldName]: value,
       }
     }));
   };
@@ -101,7 +102,7 @@ const NonWorking = () => {
             <label>
               <input
                 type="radio"
-                name="recOtherIncome"
+                name={`${person}-recOtherIncome`}
                 value="Yes"
                 checked={personData.recOtherIncome === 'Yes'}
                 onChange={(e) => handleChange(e, person)}
@@ -111,7 +112,7 @@ const NonWorking = () => {
             <label>
               <input
                 type="radio"
-                name="recOtherIncome"
+                name={`${person}-recOtherIncome`}
                 value="No"
                 checked={personData.recOtherIncome === 'No'}
                 onChange={(e) => handleChange(e, person)}

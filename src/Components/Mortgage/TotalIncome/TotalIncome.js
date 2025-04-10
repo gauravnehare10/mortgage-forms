@@ -75,6 +75,7 @@ const TotalIncome = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     updateFormData('totalIncomeData', incomeData);
+    navigate('/mortgage/add-details/existing-credit-commits');
   };
 
   const renderIncomeForm = (person, title) => {
