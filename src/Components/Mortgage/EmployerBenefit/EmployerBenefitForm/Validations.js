@@ -18,7 +18,7 @@ const validateEmployerBenefit = (benefitData, hasPartner) => {
       errors.push(`${clientType} - Other Flexible Benefits are required.`);
     }
 
-    if (!data.includeInShortfall) {
+    if (clientType === "Client" && !data.includeInShortfall) {
       errors.push(`${clientType} - Include In Shortfall is required.`);
     }
   };

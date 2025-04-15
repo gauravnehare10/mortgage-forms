@@ -57,7 +57,8 @@ const Navbar = () => {
 
   const personalNav = [
     ...baseNav.slice(0, employerBenefitIndex + 1),
-    ...(formData.occupationData?.status === "Self-Employed"
+    ...(formData.occupationData?.client?.status === "Self-Employed" || 
+        formData.occupationData?.partner?.status === "Self-Employed"
       ? [
           { path: "/mortgage/add-details/self-employed-details", label: "Self Employed Details" },
           { path: "/mortgage/add-details/self-employed-income-details", label: "Self Employed Income Details" },

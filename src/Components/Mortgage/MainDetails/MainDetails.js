@@ -3,9 +3,9 @@ import './MainDetails.css';
 import PersonForm from './PersonForm/PersonForm';
 import ContactForm from './ContactForm/ContactForm';
 import useFormStore from '../store';
+import { useNavigate } from 'react-router-dom';
 
 const MainDetails = () => {
-  // State for Main Details
   const [mainDetails, setMainDetails] = useState({
     title: '',
     informalSalutation: '',
@@ -38,13 +38,10 @@ const MainDetails = () => {
     emails: [],
   });
 
-  // State for Partners (initialize as an empty array)
   const [partners, setPartners] = useState([]);
-
-  // Access the store
+  const navigate = useNavigate();
   const { formData, fetchFormData, updateFormData } = useFormStore();
 
-  // Fetch initial form data when the component mounts
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -219,6 +216,14 @@ const MainDetails = () => {
 
   return (
     <form className="main-details-form" onSubmit={handleSubmit}>
+      <div className="form-buttons">
+        <div className="form-buttons-card">
+          <button className="back-button" type="button" onClick={() => navigate(-1)}>Back</button>
+        </div>
+        <div className="form-buttons-card">
+          <button className="form-submit" type="submit">Save</button>
+        </div>
+      </div>
       {/* Main User Form */}
       <PersonForm
         person={mainDetails}

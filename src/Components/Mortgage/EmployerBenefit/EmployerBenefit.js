@@ -119,6 +119,7 @@ const EmployerBenefit = () => {
       return;
     }
     await updateFormData("employerBenefitData", benefitData);
+    handleNext();
   };
 
   return (

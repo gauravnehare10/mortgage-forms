@@ -23,7 +23,7 @@ export default function Mortgage() {
       <div className="add-mortgage-details">
         <div className="navigation-buttons">
           <button className="edit-resp" onClick={()=>navigate("/mortgage/add-details")}>Add Details</button>
-          <button className="view-resp">View Details</button>
+          <button className="view-resp" onClick={() => navigate('/mortgage/main-details')}>View Details</button>
         </div>
       </div>
     </div>
