@@ -4,7 +4,7 @@ body {
   margin-top: 60px;
 }
 
-.navbar {
+.custom-navbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -49,6 +49,10 @@ body {
     text-decoration: none;
     font-size: 1.1rem;
     transition: color 0.3s ease-in-out;
+  }
+
+  .nav-links {
+    margin-top: 1rem;
   }
   
   .nav-links a:hover {
