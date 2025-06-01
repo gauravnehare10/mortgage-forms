@@ -1,43 +1,52 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import "./NavBar.css";
+import useAuthStore from '../../../utils/authStore';
+import Profile from '../Profile/FloatingProfile/FloatingProfile';
 
 const NavBar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showProfileCard, setShowProfileCard] = useState(false);
 
-  const toggleMenu = () => {
-    setIsOpen(!isOpen);
-  };
+  const { isAuthenticated, logout } = useAuthStore();
+
+  const toggleMenu = () => setIsOpen(!isOpen);
 
   return (
     <>
-      {/* Main Navbar */}
-      <nav className="navbar">
+      <nav className="custom-navbar">
         <div className="logo">AAI Fin</div>
 
-        {/* Hamburger Icon */}
         <div className={`hamburger ${isOpen ? "open" : ""}`} onClick={toggleMenu}>
-          <span></span>
-          <span></span>
-          <span></span>
+          <span></span><span></span><span></span>
         </div>
 
-        {/* Navigation Links */}
         <ul className={`nav-links ${isOpen ? "nav-active" : ""}`}>
-          <li>
-            <Link to="/" onClick={() => setIsOpen(false)}>Dashboard</Link>
-          </li>
-          <li>
-            <Link to="/payments" onClick={() => setIsOpen(false)}>&#163; Payment</Link>
-          </li>
-          <li>
-            <Link to="/transactions" onClick={() => setIsOpen(false)}>&#8644; Transactions</Link>
-          </li>
-          <li>
-            <Link to="/mortgage" onClick={() => setIsOpen(false)}>&#x1F3E0; Mortgage</Link>
-          </li>
+          {isAuthenticated ? (
+            <>
+              <li><Link to="/" onClick={() => setIsOpen(false)}>Home</Link></li>
+              <li>
+                <Link
+                  className="btn btn-link nav-link" 
+                  onClick={() => {
+                    setShowProfileCard(!showProfileCard);
+                    setIsOpen(false);
+                  }}
+                >
+                  Profile
+                </Link>
+              </li>
+            </>
+          ) : (
+            <>
+              <li><Link to="/login" onClick={() => setIsOpen(false)}>Login</Link></li>
+              <li><Link to="/register" onClick={() => setIsOpen(false)}>Register</Link></li>
+            </>
+          )}
         </ul>
       </nav>
+
+      {showProfileCard && <Profile onClose={() => setShowProfileCard(false)} />}
     </>
   );
 };
